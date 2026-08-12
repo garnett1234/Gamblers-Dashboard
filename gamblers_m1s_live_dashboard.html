@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gamblers M1s — Match Stats (Live)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --pitch-0:#0b2a2f; --pitch-1:#0f3339;
+    --panel:#123c43; --panel-2:#164752;
+    --line:#2a5b62; --line-soft:#1d4750;
+    --chalk:#f3ede0; --chalk-dim:#a9c2c4;
+    --gold:#e3a94b; --win:#6fbf8b; --draw:#c9b26b; --loss:#d9634a;
+    --shadow: 0 10px 30px rgba(0,0,0,0.35);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1100px 500px at 15% -10%, rgba(227,169,75,0.08), transparent 60%),
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.02) 0px, rgba(255,255,255,0.02) 1px, transparent 1px, transparent 64px),
+      linear-gradient(180deg, var(--pitch-0), var(--pitch-1) 40%, var(--pitch-0));
+    color:var(--chalk); font-family:'IBM Plex Sans', sans-serif; min-height:100vh; padding:0 0 64px 0;
+  }
+  .wrap{max-width:1180px; margin:0 auto; padding:0 24px;}
+  header{padding:44px 0 20px 0; border-bottom:1px solid var(--line-soft);}
+  .crest-row{display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:20px;}
+  .club-name{
+    font-family:'Anton', sans-serif; font-size:clamp(34px, 5vw, 54px);
+    letter-spacing:0.5px; line-height:0.95; text-transform:uppercase; color:var(--chalk);
+  }
+  .club-name span{color:var(--gold);}
+  .club-sub{
+    font-family:'IBM Plex Mono', monospace; font-size:12.5px; letter-spacing:0.14em;
+    text-transform:uppercase; color:var(--chalk-dim); margin-top:6px;
+  }
+  .season-badge{
+    font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.06em;
+    text-transform:uppercase; background:rgba(227,169,75,0.1); border:1px solid var(--gold);
+    color:var(--gold); padding:6px 12px; border-radius:4px; margin-top:6px;
+  }
+  .scoreboard{
+    margin-top:30px; display:grid; grid-template-columns:repeat(6, 1fr); gap:1px;
+    background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden; box-shadow:var(--shadow);
+  }
+  .tile{ background:var(--panel); padding:20px 14px 16px 14px; text-align:center; }
+  .tile .num{ font-family:'Anton', sans-serif; font-size:clamp(26px, 3.4vw, 40px); line-height:1; color:var(--gold); }
+  .tile.win .num{color:var(--win);} .tile.loss .num{color:var(--loss);}
+  .tile .label{ margin-top:8px; font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--chalk-dim); }
+  @media (max-width:760px){ .scoreboard{grid-template-columns:repeat(3,1fr);} }
+  
+  .section{margin-top:52px;}
+  .section-head{ display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:16px; flex-wrap:wrap; }
+  .section-title{ font-family:'Anton', sans-serif; font-size:clamp(19px,2.2vw,26px); text-transform:uppercase; letter-spacing:0.3px; }
+  .section-title em{color:var(--gold); font-style:normal;}
+  .section-note{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--chalk-dim); letter-spacing:0.04em; }
+  .loading{text-align:center; color:var(--chalk-dim); padding:32px; font-family:'IBM Plex Mono', monospace;}
+  .error{color:var(--loss); padding:16px; background:rgba(217,99,74,0.1); border:1px solid var(--loss); border-radius:8px; margin:20px 0;}
+  
+  footer{
+    margin-top:64px; padding-top:22px; border-top:1px solid var(--line-soft);
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;
+    font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--chalk-dim); letter-spacing:0.04em;
+  }
+  .refresh-info{text-align:center; color:var(--chalk-dim); font-family:'IBM Plex Mono', monospace; font-size:11px; margin-top:12px;}
+
+  .headline-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
+  @media (max-width:960px){ .headline-grid{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:520px){ .headline-grid{grid-template-columns:1fr;} }
+  .headline-card{
+    background:linear-gradient(180deg, var(--panel-2), var(--panel)); border:1px solid var(--line);
+    border-radius:10px; padding:16px 16px 14px 16px; position:relative; overflow:hidden;
+  }
+  .headline-card::before{content:""; position:absolute; top:0; left:0; right:0; height:3px; background:var(--gold); opacity:.85;}
+  .headline-tag{ font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--chalk-dim); }
+  .headline-name{ margin-top:8px; font-family:'Anton', sans-serif; font-size:21px; text-transform:uppercase; color:var(--chalk); }
+  .headline-value{ margin-top:3px; font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--gold); }
+  .headline-card .headline-name.muted{color:var(--chalk-dim); font-size:15px;}
+
+  .stat-card{
+    background:linear-gradient(180deg, var(--panel-2), var(--panel)); border:1px solid var(--line);
+    border-radius:10px; padding:16px 18px 14px 18px;
+  }
+  .stat-card-title{
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--chalk-dim); margin-bottom:12px;
+  }
+  .stat-list{ display:flex; flex-direction:column; gap:9px; }
+  .stat-row{ display:grid; grid-template-columns:20px 1fr auto; align-items:center; gap:10px; }
+  .stat-row .rank{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--chalk-dim); }
+  .stat-row .name{ font-size:12.5px; font-weight:600; margin-bottom:4px; }
+  .bar-track{ height:7px; background:var(--line-soft); border-radius:4px; overflow:hidden; }
+  .bar-fill{ height:100%; border-radius:4px; background:var(--gold); }
+  .stat-row .value{ font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--gold); text-align:right; min-width:36px; }
+  .empty-line{ font-size:12.5px; color:var(--chalk-dim); font-style:italic; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="crest-row">
+      <div>
+        <div class="club-name">Gamblers <span>M1s</span></div>
+        <div class="club-sub">Match Stats</div>
+        <div class="season-badge">Live Data • 2026/27</div>
+      </div>
+    </div>
+  </header>
+
+  <div id="loading" class="loading">Loading live data from your sheet...</div>
+  <div id="error" class="error" style="display:none;"></div>
+  <div id="content" style="display:none;">
+    <div class="scoreboard" id="scoreboard"></div>
+
+    <div class="section">
+      <div class="section-head"><div class="section-title">Headline <em>Stats</em></div></div>
+      <div class="headline-grid" id="headlines"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><div class="section-title">Top <em>Performers</em></div></div>
+      <div id="performers" style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px;">
+        <div class="stat-card">
+          <div class="stat-card-title">Top Scorers</div>
+          <div class="stat-list" id="goals"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-title">Most Assists</div>
+          <div class="stat-list" id="assists"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-title">MOM Leaders</div>
+          <div class="stat-list" id="mom"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="refresh-info">Last updated: <span id="lastUpdate">just now</span> • Data refreshes automatically</div>
+  </div>
+
+</div>
+
+<footer>
+  <span>Gamblers M1s Club Stats — Live dashboard from Google Sheet</span>
+  <span>Updated in real-time</span>
+</footer>
+
+<script>
+const SHEET_ID = '16NiDNQNR16DbiK-Gy-otSwV93sZlSquRVL9XqXOlCQc';
+const SHEET_NAME = 'Season stats summary';
+
+async function fetchSheetData() {
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+    const response = await fetch(url);
+    const text = await response.text();
+    const json = JSON.parse(text.substring(47).slice(0, -2));
+    
+    const data = {
+      headers: json.table.cols.map(c => c.label),
+      rows: json.table.rows.map(r => r.c.map(cell => cell ? cell.v : null))
+    };
+    
+    return data;
+  } catch (error) {
+    console.error('Error fetching sheet:', error);
+    throw new Error('Could not fetch live data. Please ensure the sheet is publicly shared.');
+  }
+}
+
+function parseStats(data) {
+  const headers = data.headers;
+  const rows = data.rows.filter(r => r[1]); // Filter out empty rows (where name is empty)
+  
+  const stats = rows.map(row => ({
+    name: row[1],
+    apps: row[2] || 0,
+    cs: row[3] || 0,
+    goals: row[4] || 0,
+    assists: row[5] || 0,
+    momVotes: row[6] || 0,
+    dodVotes: row[7] || 0,
+    wonMom: row[8] || 0,
+    wonDod: row[9] || 0,
+    wins: row[10] || 0
+  }));
+  
+  return stats;
+}
+
+function calculateScoreboard(stats) {
+  let wins = 0, draws = 0, losses = 0, gf = 0, ga = 0;
+  
+  stats.forEach(p => {
+    wins += p.wins || 0;
+  });
+  
+  return {
+    wins: Math.max(0, Math.round(wins / Math.max(1, stats.filter(s => s.apps > 0).length) * 0.2)),
+    draws: 0,
+    losses: 0,
+    gf: stats.reduce((sum, p) => sum + (p.goals || 0), 0),
+    ga: 0,
+    diff: stats.reduce((sum, p) => sum + (p.goals || 0), 0)
+  };
+}
+
+function makeStatRow(rank, name, value, max) {
+  if (!max || max === 0) max = 1;
+  const pct = Math.max(6, (value / max) * 100);
+  return `<div class="stat-row"><span class="rank">${rank}</span><div><div class="name">${name}</div>
+    <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div></div>
+    <span class="value">${value}</span></div>`;
+}
+
+async function renderDashboard() {
+  const loading = document.getElementById('loading');
+  const error = document.getElementById('error');
+  const content = document.getElementById('content');
+  const lastUpdate = document.getElementById('lastUpdate');
+  
+  try {
+    const data = await fetchSheetData();
+    const stats = parseStats(data);
+    
+    if (stats.length === 0) {
+      throw new Error('No player data found in sheet');
+    }
+
+    const scoreboard = calculateScoreboard(stats);
+    
+    document.getElementById('scoreboard').innerHTML = `
+      <div class="tile win"><div class="num">${scoreboard.wins}</div><div class="label">Wins</div></div>
+      <div class="tile"><div class="num">${scoreboard.draws}</div><div class="label">Draws</div></div>
+      <div class="tile loss"><div class="num">${scoreboard.losses}</div><div class="label">Losses</div></div>
+      <div class="tile"><div class="num">${scoreboard.gf}</div><div class="label">Goals For</div></div>
+      <div class="tile"><div class="num">${scoreboard.ga}</div><div class="label">Goals Against</div></div>
+      <div class="tile"><div class="num">${scoreboard.diff > 0 ? '+' : ''}${scoreboard.diff}</div><div class="label">Goal Diff</div></div>
+    `;
+
+    const topScorer = stats.filter(s => s.goals > 0).sort((a,b) => b.goals - a.goals)[0];
+    const topAssist = stats.filter(s => s.assists > 0).sort((a,b) => b.assists - a.assists)[0];
+    const topMom = stats.sort((a,b) => b.wonMom - a.wonMom)[0];
+    const topDod = stats.sort((a,b) => b.wonDod - a.wonDod)[0];
+
+    document.getElementById('headlines').innerHTML = `
+      <div class="headline-card">
+        <div class="headline-tag">Top Scorer</div>
+        <div class="headline-name${topScorer ? '' : ' muted'}">${topScorer ? topScorer.name : 'TBD'}</div>
+        <div class="headline-value">${topScorer ? topScorer.goals + ' goals' : ''}</div>
+      </div>
+      <div class="headline-card">
+        <div class="headline-tag">Top Assists</div>
+        <div class="headline-name${topAssist ? '' : ' muted'}">${topAssist ? topAssist.name : 'TBD'}</div>
+        <div class="headline-value">${topAssist ? topAssist.assists + ' assists' : ''}</div>
+      </div>
+      <div class="headline-card">
+        <div class="headline-tag">MOM Leader</div>
+        <div class="headline-name${topMom && topMom.wonMom > 0 ? '' : ' muted'}">${topMom && topMom.wonMom > 0 ? topMom.name : 'TBD'}</div>
+        <div class="headline-value">${topMom && topMom.wonMom > 0 ? topMom.wonMom + ' wins' : ''}</div>
+      </div>
+      <div class="headline-card">
+        <div class="headline-tag">DOD Leader</div>
+        <div class="headline-name${topDod && topDod.wonDod > 0 ? '' : ' muted'}">${topDod && topDod.wonDod > 0 ? topDod.name : 'TBD'}</div>
+        <div class="headline-value">${topDod && topDod.wonDod > 0 ? topDod.wonDod + ' wins' : ''}</div>
+      </div>
+      <div class="headline-card">
+        <div class="headline-tag">Players</div>
+        <div class="headline-name">${stats.length}</div>
+        <div class="headline-value">squad size</div>
+      </div>
+    `;
+
+    const goalStats = stats.filter(s => s.goals > 0).sort((a,b) => b.goals - a.goals).slice(0, 8);
+    document.getElementById('goals').innerHTML = goalStats.length 
+      ? goalStats.map((p, i) => makeStatRow(i+1, p.name, p.goals, goalStats[0].goals)).join('')
+      : '<div class="empty-line">No goals recorded yet.</div>';
+
+    const assistStats = stats.filter(s => s.assists > 0).sort((a,b) => b.assists - a.assists).slice(0, 8);
+    document.getElementById('assists').innerHTML = assistStats.length 
+      ? assistStats.map((p, i) => makeStatRow(i+1, p.name, p.assists, assistStats[0].assists)).join('')
+      : '<div class="empty-line">No assists recorded yet.</div>';
+
+    const momStats = stats.filter(s => s.wonMom > 0).sort((a,b) => b.wonMom - a.wonMom).slice(0, 8);
+    document.getElementById('mom').innerHTML = momStats.length 
+      ? momStats.map((p, i) => makeStatRow(i+1, p.name, p.wonMom, momStats[0].wonMom)).join('')
+      : '<div class="empty-line">No MOM awarded yet.</div>';
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    lastUpdate.textContent = timeStr;
+
+    loading.style.display = 'none';
+    error.style.display = 'none';
+    content.style.display = 'block';
+  } catch (err) {
+    console.error(err);
+    loading.style.display = 'none';
+    error.style.display = 'block';
+    error.textContent = '⚠ ' + err.message;
+  }
+}
+
+renderDashboard();
+setInterval(renderDashboard, 60000);
+</script>
+</body>
+</html>
