@@ -1060,12 +1060,35 @@ function getCell(table, row, col){
   if(!c) return null;
   return c.v;
 }
-async function fetchSheetTable(sheetName){
+async function fetchSheetTable(sheetName, attempt){
+  attempt = attempt || 1;
   const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
-  const res = await fetch(url);
-  if(!res.ok) throw new Error(`Fetch failed for ${sheetName}: ${res.status}`);
-  const text = await res.text();
-  return parseGviz(text);
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error(`Fetch failed for ${sheetName}: ${res.status}`);
+    const text = await res.text();
+    return parseGviz(text);
+  }catch(err){
+    if(attempt < 3){
+      await new Promise(r => setTimeout(r, 400 * attempt));
+      return fetchSheetTable(sheetName, attempt + 1);
+    }
+    throw err;
+  }
+}
+async function fetchWeeksInBatches(weekNames, batchSize){
+  const results = {};
+  for(let i=0; i<weekNames.length; i+=batchSize){
+    const batch = weekNames.slice(i, i+batchSize);
+    const settled = await Promise.allSettled(batch.map(name => fetchSheetTable(name)));
+    settled.forEach((r, idx) => {
+      const name = batch[idx];
+      if(r.status === 'fulfilled') results[name] = r.value;
+      else console.warn(`Skipping ${name} after repeated failures:`, r.reason);
+    });
+    if(i+batchSize < weekNames.length) await new Promise(r => setTimeout(r, 150));
+  }
+  return results;
 }
 function parseDMY(d){
   const parts = String(d).split('/').map(Number);
@@ -1082,7 +1105,8 @@ async function loadLiveSeason(){
 
   try{
     const weekNames = Array.from({length:22},(_,i)=>`Week ${i+1}`);
-    const weekTables = await Promise.all(weekNames.map(fetchSheetTable));
+    const weekResults = await fetchWeeksInBatches(weekNames, 6);
+    const weekTables = weekNames.map(name => weekResults[name]).filter(Boolean);
     const summaryTable = await fetchSheetTable('Season Summary & Cards');
 
     const fixtures = [];
@@ -1178,7 +1202,7 @@ async function loadLiveSeason(){
 }
 
 loadLiveSeason();
-setInterval(loadLiveSeason, 60000);
+setInterval(loadLiveSeason, 86400000); // refresh once a day in the background - opening the page always fetches fresh anyway
 
 /* =========================================================
    NAV — season toggle + sub-tabs
