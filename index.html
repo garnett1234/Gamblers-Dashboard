@@ -1048,26 +1048,44 @@ renderSeason('last', SQUAD_LAST, CARDS_LAST, MATCHES_LAST, {fastestPint:null, pi
 /* =========================================================
    LIVE FETCH — 2026/27 from Google Sheets via gviz
    ========================================================= */
-function parseGviz(text){
-  const match = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?\s*$/);
-  if(!match) throw new Error('Unexpected gviz response shape');
-  return JSON.parse(match[1]).table;
+function parseCSV(text){
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  for(let i=0; i<text.length; i++){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if(c === '"') inQuotes = true;
+      else if(c === ',') { row.push(field); field = ''; }
+      else if(c === '\r') { /* skip */ }
+      else if(c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else field += c;
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows;
 }
 function getCell(table, row, col){
-  const r = table.rows[row-1];
+  const r = table[row-1];
   if(!r) return null;
-  const c = r.c[col-1];
-  if(!c) return null;
-  return c.v;
+  const v = r[col-1];
+  if(v === undefined || v === '') return null;
+  return v;
 }
 async function fetchSheetTable(sheetName, attempt){
   attempt = attempt || 1;
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
   try{
     const res = await fetch(url);
     if(!res.ok) throw new Error(`Fetch failed for ${sheetName}: ${res.status}`);
     const text = await res.text();
-    return parseGviz(text);
+    return parseCSV(text);
   }catch(err){
     if(attempt < 3){
       await new Promise(r => setTimeout(r, 400 * attempt));
