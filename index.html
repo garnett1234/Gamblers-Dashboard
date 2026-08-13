@@ -308,7 +308,7 @@
       <div class="section">
         <div class="section-head">
           <div class="section-title">Appearances <em>&amp;</em> Ratios</div>
-          <div class="section-note">win % and DOD % need 4+ appearances · click header to sort</div>
+          <div class="section-note">win % needs 4+ appearances · click header to sort</div>
         </div>
         <div class="table-shell">
           <table id="table-apps-last">
@@ -316,7 +316,7 @@
               <th class="sortable" data-key="name">Name</th>
               <th class="sortable num" data-key="apps">Appearances</th>
               <th class="sortable num" data-key="winPct">Win Ratio</th>
-              <th class="sortable num" data-key="dodPct">DOD Ratio</th>
+              <th class="sortable num" data-key="netMomDod">Net MOM/DOD</th>
             </tr></thead>
             <tbody></tbody>
           </table>
@@ -451,7 +451,7 @@
         <div class="section">
           <div class="section-head">
             <div class="section-title">Appearances <em>&amp;</em> Ratios</div>
-            <div class="section-note">win % and DOD % need 4+ appearances · click header to sort</div>
+            <div class="section-note">win % needs 4+ appearances · click header to sort</div>
           </div>
           <div class="table-shell">
             <table id="table-apps-this">
@@ -459,7 +459,7 @@
                 <th class="sortable" data-key="name">Name</th>
                 <th class="sortable num" data-key="apps">Appearances</th>
                 <th class="sortable num" data-key="winPct">Win Ratio</th>
-                <th class="sortable num" data-key="dodPct">DOD Ratio</th>
+                <th class="sortable num" data-key="netMomDod">Net MOM/DOD</th>
               </tr></thead>
               <tbody></tbody>
             </table>
@@ -698,6 +698,7 @@ function statsRow(p){
     assistRatio: apps? +(assists/apps).toFixed(2) : 0,
     winPct: apps>=4 ? +((wins/apps)*100).toFixed(1) : null,
     dodPct: apps>=4 ? +((wonDod/apps)*100).toFixed(1) : null,
+    netMomDod: wonMom - wonDod,
   };
 }
 function hexToRgb(hex){
@@ -865,20 +866,20 @@ function renderSeason(suffix, SQUAD, CARDS, MATCHES, extra){
     target.innerHTML = top.map(p=>`<span class="chip">${p.name} <span class="n">${p.cs}</span></span>`).join('');
   })();
 
-  // appearances / win ratio / dod ratio table
+  // appearances / win ratio / net mom-dod table
   (function(){
     const tableEl = el('table-apps');
     if(!tableEl) return;
     const tbody = tableEl.querySelector('tbody');
     const eligible = STATS.filter(p=>p.winPct!=null);
-    const mmWin = minmax(eligible,'winPct'), mmDod = minmax(eligible,'dodPct');
+    const mmWin = minmax(eligible,'winPct'), mmNet = minmax(STATS,'netMomDod');
     function render(rows){
       tbody.innerHTML = rows.map(p=>{
         const winDisp = p.winPct!=null ? p.winPct.toFixed(1)+'%' : '—';
-        const dodDisp = p.dodPct!=null ? p.dodPct.toFixed(1)+'%' : '—';
+        const netDisp = p.netMomDod > 0 ? `+${p.netMomDod}` : `${p.netMomDod}`;
         const bgWin = p.winPct!=null ? scale3(p.winPct, mmWin.min, mmWin.max, '#c9432e','#dba52e','#2f8f4e', false) : null;
-        const bgDod = p.dodPct!=null ? scale3(p.dodPct, mmDod.min, mmDod.max, '#c9432e','#dba52e','#2f8f4e', true) : null;
-        return `<tr>${td(`<span class="player">${p.name}</span>`)}${td(p.apps,{cls:'num'})}${td(winDisp,{bg:bgWin,cls:'num'})}${td(dodDisp,{bg:bgDod,cls:'num'})}</tr>`;
+        const bgNet = scale3(p.netMomDod, mmNet.min, mmNet.max, '#c9432e','#dba52e','#2f8f4e', false);
+        return `<tr>${td(`<span class="player">${p.name}</span>`)}${td(p.apps,{cls:'num'})}${td(winDisp,{bg:bgWin,cls:'num'})}${td(netDisp,{bg:bgNet,cls:'num'})}</tr>`;
       }).join('');
     }
     attachSort(tableEl, STATS, render, 'apps', -1);
@@ -1048,44 +1049,33 @@ renderSeason('last', SQUAD_LAST, CARDS_LAST, MATCHES_LAST, {fastestPint:null, pi
 /* =========================================================
    LIVE FETCH — 2026/27 from Google Sheets via gviz
    ========================================================= */
-function parseCSV(text){
-  const rows = [];
-  let row = [];
-  let field = '';
-  let inQuotes = false;
-  for(let i=0; i<text.length; i++){
-    const c = text[i];
-    if(inQuotes){
-      if(c === '"'){
-        if(text[i+1] === '"'){ field += '"'; i++; }
-        else inQuotes = false;
-      } else field += c;
-    } else {
-      if(c === '"') inQuotes = true;
-      else if(c === ',') { row.push(field); field = ''; }
-      else if(c === '\r') { /* skip */ }
-      else if(c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-      else field += c;
-    }
-  }
-  if(field.length || row.length){ row.push(field); rows.push(row); }
-  return rows;
+function parseGviz(text){
+  const match = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?\s*$/);
+  if(!match) throw new Error('Unexpected gviz response shape');
+  return JSON.parse(match[1]).table;
 }
 function getCell(table, row, col){
-  const r = table[row-1];
+  const r = table.rows[row-1];
   if(!r) return null;
-  const v = r[col-1];
-  if(v === undefined || v === '') return null;
-  return v;
+  const c = r.c[col-1];
+  if(!c) return null;
+  return c.v;
+}
+function getCellFormatted(table, row, col){
+  const r = table.rows[row-1];
+  if(!r) return null;
+  const c = r.c[col-1];
+  if(!c) return null;
+  return (c.f !== undefined && c.f !== null) ? c.f : c.v;
 }
 async function fetchSheetTable(sheetName, attempt){
   attempt = attempt || 1;
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
   try{
     const res = await fetch(url);
     if(!res.ok) throw new Error(`Fetch failed for ${sheetName}: ${res.status}`);
     const text = await res.text();
-    return parseCSV(text);
+    return parseGviz(text);
   }catch(err){
     if(attempt < 3){
       await new Promise(r => setTimeout(r, 400 * attempt));
@@ -1133,10 +1123,9 @@ async function loadLiveSeason(){
     const pintTotals = {};
 
     weekTables.forEach(t=>{
-      const date = getCell(t,2,2);
+      const date = getCellFormatted(t,2,2);
       if(!date) return;
       const opp = getCell(t,3,2) || '';
-      const result = getCell(t,4,2) || '';
       const gf = Number(getCell(t,5,2))||0;
       const ga = Number(getCell(t,6,2))||0;
 
@@ -1157,7 +1146,14 @@ async function loadLiveSeason(){
         }
       }
 
-      if(result==='Win') teamSheet.forEach(n=> winsMap[n]=(winsMap[n]||0)+1);
+      // Derive the result from the scores (always reliable). If the Result text
+      // field explicitly says Win/Draw/Loss, honour that as an override.
+      const resultText = String(getCell(t,4,2) || '').trim().toLowerCase();
+      let isWin;
+      if(resultText === 'win') isWin = true;
+      else if(resultText === 'draw' || resultText === 'loss') isWin = false;
+      else isWin = gf > ga;
+      if(isWin) teamSheet.forEach(n=> winsMap[n]=(winsMap[n]||0)+1);
 
       fixtures.push({date, opp, gf, ga, goals, assists, mom, dod, cards, momWinner, dodWinner});
     });
