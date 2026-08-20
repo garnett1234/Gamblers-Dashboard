@@ -743,8 +743,8 @@ function td(content, opts){
 }
 function formatSecs(s){
   if(s==null) return '—';
-  const m = Math.floor(s/60), sec = Math.round(s%60);
-  return m>0 ? `${m}m ${sec}s` : `${sec}s`;
+  const m = Math.floor(s/60), sec = s%60;
+  return m>0 ? `${m}m ${sec.toFixed(2)}s` : `${Number(s).toFixed(2)}s`;
 }
 function makeStatRow(rank, name, value, max, display){
   const pct = max>0 ? Math.max(6, (value/max)*100) : 0;
@@ -1075,6 +1075,10 @@ function getCell(table, row, col){
   if(!r) return null;
   const c = r.c[col-1];
   if(!c) return null;
+  // gviz types each column as a whole. Text sitting in a mostly-numeric column
+  // (e.g. the opponent name in column B) comes back with v:null but keeps its
+  // display text in f, so fall back to f whenever v is missing.
+  if(c.v === null || c.v === undefined) return (c.f !== undefined && c.f !== null) ? c.f : null;
   return c.v;
 }
 function getCellFormatted(table, row, col){
