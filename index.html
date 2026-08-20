@@ -1012,7 +1012,19 @@ function renderSeason(suffix, SQUAD, CARDS, MATCHES, extra){
           const wonDodHere = resolveWinner(m.dod, m.dodWinner) === name;
           parts.push(`${d[1]} DOD vote${d[1]>1?'s':''}${wonDodHere?' — WON':''}`);
         }
-        if(parts.length) log.push({date:m.date, opp:m.opp, text:parts.join(' · ')});
+        const c = (m.cards||[]).find(x=>x[0]===name);
+        if(c){
+          const bits = [];
+          if(c[1]>0) bits.push(`${c[1]} green`);
+          if(c[2]>0) bits.push(`${c[2]} yellow`);
+          if(c[3]>0) bits.push(`${c[3]} red`);
+          if(bits.length) parts.push(bits.join(', '));
+        }
+        // Show every match the player appeared in, even with nothing else to report.
+        const played = m.teamSheet ? m.teamSheet.indexOf(name) !== -1 : false;
+        if(parts.length || played){
+          log.push({date:m.date, opp:m.opp, text: parts.length ? parts.join(' · ') : 'Played'});
+        }
       });
       return log;
     }
@@ -1046,9 +1058,9 @@ function renderSeason(suffix, SQUAD, CARDS, MATCHES, extra){
             <div class="player-tile"><div class="v">${cardsTxt}</div><div class="l">Cards</div></div>
             <div class="player-tile"><div class="v">${pintEntry ? formatSecs(pintEntry.best) : '—'}</div><div class="l">Fastest Pint</div></div>
           </div>
-          <div class="player-log-title">Match Log (${log.length} contribution${log.length===1?'':'s'})</div>
+          <div class="player-log-title">Match Log (${log.length} match${log.length===1?'':'es'})</div>
           <div class="player-log">
-            ${log.length ? log.map(l=>`<div class="player-log-row"><span class="opp">v ${l.opp} <span style="color:var(--chalk-dim); font-weight:400;">(${l.date})</span></span><span class="contrib">${l.text}</span></div>`).join('') : '<div class="fixture-empty">No goals, assists or votes recorded this season.</div>'}
+            ${log.length ? log.map(l=>`<div class="player-log-row"><span class="opp">v ${l.opp} <span style="color:var(--chalk-dim); font-weight:400;">(${l.date})</span></span><span class="contrib">${l.text}</span></div>`).join('') : '<div class="fixture-empty">No matches recorded this season.</div>'}
           </div>
         </div>`;
       dashHost.scrollIntoView({behavior:'smooth', block:'nearest'});
@@ -1065,37 +1077,48 @@ renderSeason('last', SQUAD_LAST, CARDS_LAST, MATCHES_LAST, {fastestPint:null, pi
 /* =========================================================
    LIVE FETCH — 2026/27 from Google Sheets via gviz
    ========================================================= */
-function parseGviz(text){
-  const match = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?\s*$/);
-  if(!match) throw new Error('Unexpected gviz response shape');
-  return JSON.parse(match[1]).table;
+// CSV output has no per-column type inference, so text (opponent names, winner
+// names) can never be silently dropped the way it is in the JSON feed. Blank
+// rows are omitted by gviz, but section lookup is label-based so that's harmless.
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if(c === '"') inQuotes = true;
+      else if(c === ','){ row.push(field); field = ''; }
+      else if(c === '\r'){ /* ignore */ }
+      else if(c === '\n'){ row.push(field); rows.push(row); row = []; field = ''; }
+      else field += c;
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return { rows: rows };
 }
 function getCell(table, row, col){
   const r = table.rows[row-1];
   if(!r) return null;
-  const c = r.c[col-1];
-  if(!c) return null;
-  // gviz types each column as a whole. Text sitting in a mostly-numeric column
-  // (e.g. the opponent name in column B) comes back with v:null but keeps its
-  // display text in f, so fall back to f whenever v is missing.
-  if(c.v === null || c.v === undefined) return (c.f !== undefined && c.f !== null) ? c.f : null;
-  return c.v;
+  const v = r[col-1];
+  if(v === undefined || v === null || String(v).trim() === '') return null;
+  return v;
 }
 function getCellFormatted(table, row, col){
-  const r = table.rows[row-1];
-  if(!r) return null;
-  const c = r.c[col-1];
-  if(!c) return null;
-  return (c.f !== undefined && c.f !== null) ? c.f : c.v;
+  return getCell(table, row, col);
 }
 async function fetchSheetTable(sheetName, attempt){
   attempt = attempt || 1;
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&headers=0&sheet=${encodeURIComponent(sheetName)}`;
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&headers=0&sheet=${encodeURIComponent(sheetName)}`;
   try{
     const res = await fetch(url);
     if(!res.ok) throw new Error(`Fetch failed for ${sheetName}: ${res.status}`);
     const text = await res.text();
-    return parseGviz(text);
+    return parseCSV(text);
   }catch(err){
     if(attempt < 3){
       await new Promise(r => setTimeout(r, 400 * attempt));
@@ -1235,7 +1258,7 @@ async function loadLiveSeason(){
       });
 
 
-      fixtures.push({date, opp, gf, ga, goals, assists, mom, dod, cards, momWinner, dodWinner});
+      fixtures.push({date, opp, gf, ga, goals, assists, mom, dod, cards, momWinner, dodWinner, teamSheet});
     });
 
     fixtures.sort((a,b)=>parseDMY(a.date)-parseDMY(b.date));
@@ -1277,7 +1300,7 @@ async function loadLiveSeason(){
       .map(([name,d])=>({name, best: d.best, count:d.count}))
       .sort((a,b)=>a.best-b.best);
 
-    const MATCHES_LIVE = fixtures.map(f=>({date:f.date, opp:f.opp, gf:f.gf, ga:f.ga, goals:f.goals, assists:f.assists, mom:f.mom, dod:f.dod, momWinner:f.momWinner, dodWinner:f.dodWinner}));
+    const MATCHES_LIVE = fixtures.map(f=>({date:f.date, opp:f.opp, gf:f.gf, ga:f.ga, goals:f.goals, assists:f.assists, mom:f.mom, dod:f.dod, momWinner:f.momWinner, dodWinner:f.dodWinner, cards:f.cards, teamSheet:f.teamSheet}));
 
     emptyState.classList.add('hide');
     loadError.classList.add('hide');
