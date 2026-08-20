@@ -221,6 +221,12 @@
   }
   .live-badge .dot{width:6px; height:6px; border-radius:50%; background:var(--win); animation:pulse 1.6s infinite;}
   @keyframes pulse{ 0%{opacity:1;} 50%{opacity:.25;} 100%{opacity:1;} }
+  .data-issues{
+    border:1px solid var(--draw); border-radius:10px; padding:14px 18px; background:rgba(201,178,107,0.07);
+  }
+  .data-issues strong{ font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--draw); }
+  .data-issues ul{ margin:10px 0 0 0; padding-left:18px; }
+  .data-issues li{ font-size:12.5px; color:var(--chalk-dim); line-height:1.6; }
   .load-error{ border:1px dashed var(--loss); border-radius:10px; padding:20px; text-align:center; color:var(--loss); font-family:'IBM Plex Mono', monospace; font-size:12px; }
 
   footer{
@@ -487,6 +493,8 @@
           </div>
           <div id="fixtures-list-this"></div>
         </div>
+
+        <div id="data-issues-this" class="section hide"></div>
 
         <div class="section">
           <div class="section-head">
@@ -1157,9 +1165,32 @@ async function loadLiveSeason(){
   try{
     const weekNames = Array.from({length:22},(_,i)=>`Week ${i+1}`);
     const weekResults = await fetchWeeksInBatches(weekNames, 6);
-    const weekTables = weekNames.map(name => weekResults[name]).filter(Boolean);
+    const weekEntries = weekNames.map(name => ({name, table: weekResults[name]})).filter(e => e.table);
+    const weekTables = weekEntries.map(e => e.table);
     if(weekTables.length === 0) throw new Error('No week tabs could be loaded from the sheet.');
     const summaryTable = await fetchSheetTable('Season Summary & Cards');
+
+    // Match Info (date/opponent/scores) is read from a dedicated 'Fixtures' tab.
+    // Google's sheet API types each column as a whole and silently drops text
+    // that sits in a mostly-numeric column - which is what happens to the
+    // opponent name in the weekly tabs' column B. The Fixtures tab keeps each
+    // column to a single kind of data, so nothing gets discarded.
+    let fixtureInfo = {};
+    try{
+      const fx = await fetchSheetTable('Fixtures');
+      for(let r=2; r<=40; r++){
+        const wk = getCell(fx,r,1);
+        if(!wk) continue;
+        fixtureInfo[String(wk).trim()] = {
+          date: getCell(fx,r,2),
+          opp:  getCell(fx,r,3),
+          gf:   Number(getCell(fx,r,4))||0,
+          ga:   Number(getCell(fx,r,5))||0
+        };
+      }
+    }catch(e){
+      console.warn("No 'Fixtures' tab found - falling back to reading match info from each week tab. Opponent names may be missing until the Fixtures tab is added.", e);
+    }
 
     const fixtures = [];
     let fastestPint = null;
@@ -1217,12 +1248,21 @@ async function loadLiveSeason(){
       return out;
     }
 
-    weekTables.forEach(t=>{
-      const date = labelValueFormatted(t,'Date');
-      if(!date) return;
-      const opp = labelValue(t,'Opponent') || '';
-      const gf = Number(labelValue(t,'Gamblers Score'))||0;
-      const ga = Number(labelValue(t,'Opposition Score'))||0;
+    const dataIssues = [];
+
+    weekEntries.forEach(entry=>{
+      const t = entry.table, wkName = entry.name;
+      const fi = fixtureInfo[wkName] || {};
+      const date = fi.date || labelValueFormatted(t,'Date');
+      if(!date){
+        const secPre = indexSections(t);
+        const tsPre = readSection(t, secPre['TEAM SHEET'], []).map(r=>r[0]);
+        if(tsPre.length) dataIssues.push(`${wkName}: team sheet filled in but no date entered — this week won't show on the dashboard.`);
+        return;
+      }
+      const opp = fi.opp || labelValue(t,'Opponent') || '';
+      const gf = (fi.gf !== undefined && fi.gf !== null) ? fi.gf : (Number(labelValue(t,'Gamblers Score'))||0);
+      const ga = (fi.ga !== undefined && fi.ga !== null) ? fi.ga : (Number(labelValue(t,'Opposition Score'))||0);
 
       const sec = indexSections(t);
 
@@ -1256,6 +1296,30 @@ async function loadLiveSeason(){
           pintTotals[n].count += 1;
         }
       });
+
+      // --- Data integrity checks -------------------------------------------
+      // The main season-long risk is a name recorded in one section that doesn't
+      // match the team sheet (typo, or player left off the sheet). That would
+      // silently split someone's stats, so surface it rather than swallow it.
+      if(teamSheet.length === 0){
+        dataIssues.push(`${wkName}: match date entered but no team sheet — nobody will be credited with an appearance.`);
+      } else {
+        const flag = (label, names) => {
+          names.forEach(n=>{
+            if(n && teamSheet.indexOf(n) === -1){
+              dataIssues.push(`${wkName}: "${n}" is recorded in ${label} but isn't on the team sheet.`);
+            }
+          });
+        };
+        flag('Goals',      goals.map(r=>r[0]));
+        flag('Assists',    assists.map(r=>r[0]));
+        flag('MOM Votes',  mom.map(r=>r[0]));
+        flag('DOD Votes',  dod.map(r=>r[0]));
+        flag('Cards',      cards.map(r=>r[0]));
+        flag('Pint Time',  readSection(t, sec['PINT TIME'], [2]).map(r=>r[0]));
+        if(momWinner && teamSheet.indexOf(momWinner) === -1) dataIssues.push(`${wkName}: MOM winner "${momWinner}" isn't on the team sheet.`);
+        if(dodWinner && teamSheet.indexOf(dodWinner) === -1) dataIssues.push(`${wkName}: DOD winner "${dodWinner}" isn't on the team sheet.`);
+      }
 
 
       fixtures.push({date, opp, gf, ga, goals, assists, mom, dod, cards, momWinner, dodWinner, teamSheet});
@@ -1309,6 +1373,20 @@ async function loadLiveSeason(){
     livePlayers.classList.remove('hide');
 
     renderSeason('this', SQUAD_LIVE, CARDS_LIVE, MATCHES_LIVE, {fastestPint, pints:PINTS_LIVE});
+
+    // Surface any data-entry problems so they get caught early rather than
+    // quietly skewing the season totals.
+    const issuesEl = document.getElementById('data-issues-this');
+    if(issuesEl){
+      if(dataIssues.length){
+        console.warn('Dashboard data check:', dataIssues);
+        issuesEl.classList.remove('hide');
+        issuesEl.innerHTML = `<div class="data-issues"><strong>Data check — ${dataIssues.length} item${dataIssues.length===1?'':'s'} to review</strong><ul>${dataIssues.map(i=>`<li>${i}</li>`).join('')}</ul></div>`;
+      } else {
+        issuesEl.classList.add('hide');
+        issuesEl.innerHTML = '';
+      }
+    }
 
   }catch(err){
     console.error('Live sheet load failed:', err);
