@@ -396,9 +396,12 @@
         </div>
       </div>
 
-      <div id="load-error-this" class="section hide">
-        <div class="load-error">Couldn't load the live sheet. Check the sheet is shared as "Anyone with the link can view", then refresh.</div>
+    <div id="load-error-this" class="section hide">
+      <div class="load-error">
+        Couldn't load the live sheet.<br>
+        <span id="load-error-detail" style="display:block; margin-top:10px; color:var(--chalk-dim); font-size:11px;"></span>
       </div>
+    </div>
 
       <div id="live-content-this" class="hide">
 
@@ -1209,6 +1212,8 @@ async function loadLiveSeason(){
 
   }catch(err){
     console.error('Live sheet load failed:', err);
+    const detail = document.getElementById('load-error-detail');
+    if(detail) detail.textContent = (err && err.message) ? err.message : String(err);
     emptyState.classList.add('hide');
     liveContent.classList.add('hide');
     loadError.classList.remove('hide');
