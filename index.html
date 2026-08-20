@@ -701,7 +701,7 @@ function statsRow(p){
     assistRatio: apps? +(assists/apps).toFixed(2) : 0,
     winPct: apps>=4 ? +((wins/apps)*100).toFixed(1) : null,
     dodPct: apps>=4 ? +((wonDod/apps)*100).toFixed(1) : null,
-    netMomDod: wonMom - wonDod,
+    netMomDod: momVotes - dodVotes,
   };
 }
 function hexToRgb(hex){
@@ -1073,7 +1073,7 @@ function getCellFormatted(table, row, col){
 }
 async function fetchSheetTable(sheetName, attempt){
   attempt = attempt || 1;
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&headers=0&sheet=${encodeURIComponent(sheetName)}`;
   try{
     const res = await fetch(url);
     if(!res.ok) throw new Error(`Fetch failed for ${sheetName}: ${res.status}`);
@@ -1118,6 +1118,7 @@ async function loadLiveSeason(){
     const weekNames = Array.from({length:22},(_,i)=>`Week ${i+1}`);
     const weekResults = await fetchWeeksInBatches(weekNames, 6);
     const weekTables = weekNames.map(name => weekResults[name]).filter(Boolean);
+    if(weekTables.length === 0) throw new Error('No week tabs could be loaded from the sheet.');
     const summaryTable = await fetchSheetTable('Season Summary & Cards');
 
     const fixtures = [];
