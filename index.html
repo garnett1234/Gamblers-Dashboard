@@ -350,20 +350,23 @@
           <table id="table-allstats-last">
             <thead><tr>
               <th class="sortable" data-key="name">Player</th>
-              <th class="sortable num" data-key="apps">Apps</th>
-              <th class="sortable num" data-key="cs">CS</th>
-              <th class="sortable num" data-key="goals">Gls</th>
-              <th class="sortable num" data-key="assists">Ast</th>
-              <th class="sortable num" data-key="gA">G+A</th>
+              <th class="sortable num" data-key="apps">Appearances</th>
+              <th class="sortable num" data-key="cs">Clean Sheets</th>
+              <th class="sortable num" data-key="goals">Goals</th>
+              <th class="sortable num" data-key="assists">Assists</th>
+              <th class="sortable num" data-key="gA">Goals + Assists</th>
               <th class="sortable num" data-key="goalRatio">Goal Ratio</th>
-              <th class="sortable num" data-key="assistRatio">Ast Ratio</th>
-              <th class="sortable num" data-key="momVotes">MOM</th>
-              <th class="sortable num" data-key="dodVotes">DOD</th>
+              <th class="sortable num" data-key="assistRatio">Assist Ratio</th>
+              <th class="sortable num" data-key="momVotes">MOM Votes</th>
+              <th class="sortable num" data-key="dodVotes">DOD Votes</th>
               <th class="sortable num" data-key="wonMom">Won MOM</th>
               <th class="sortable num" data-key="wonDod">Won DOD</th>
+              <th class="sortable num" data-key="netMomDod">Net MOM/DOD</th>
               <th class="sortable num" data-key="wins">Wins</th>
               <th class="sortable num" data-key="winPct">Win %</th>
-              <th class="sortable num" data-key="dodPct">DOD %</th>
+              <th class="sortable num" data-key="green">Green Cards</th>
+              <th class="sortable num" data-key="yellow">Yellow Cards</th>
+              <th class="sortable num" data-key="red">Red Cards</th>
               <th class="num">Pint Time</th>
             </tr></thead>
             <tbody></tbody>
@@ -488,7 +491,7 @@
         <div class="section">
           <div class="section-head">
             <div class="section-title">Pints <em>Leaderboard</em></div>
-            <div class="section-note">fastest average pint time, minimum one recorded</div>
+            <div class="section-note">each player's fastest recorded pint · quickest first</div>
           </div>
           <div id="pints-shell-this"></div>
         </div>
@@ -512,20 +515,23 @@
           <table id="table-allstats-this">
             <thead><tr>
               <th class="sortable" data-key="name">Player</th>
-              <th class="sortable num" data-key="apps">Apps</th>
-              <th class="sortable num" data-key="cs">CS</th>
-              <th class="sortable num" data-key="goals">Gls</th>
-              <th class="sortable num" data-key="assists">Ast</th>
-              <th class="sortable num" data-key="gA">G+A</th>
+              <th class="sortable num" data-key="apps">Appearances</th>
+              <th class="sortable num" data-key="cs">Clean Sheets</th>
+              <th class="sortable num" data-key="goals">Goals</th>
+              <th class="sortable num" data-key="assists">Assists</th>
+              <th class="sortable num" data-key="gA">Goals + Assists</th>
               <th class="sortable num" data-key="goalRatio">Goal Ratio</th>
-              <th class="sortable num" data-key="assistRatio">Ast Ratio</th>
-              <th class="sortable num" data-key="momVotes">MOM</th>
-              <th class="sortable num" data-key="dodVotes">DOD</th>
+              <th class="sortable num" data-key="assistRatio">Assist Ratio</th>
+              <th class="sortable num" data-key="momVotes">MOM Votes</th>
+              <th class="sortable num" data-key="dodVotes">DOD Votes</th>
               <th class="sortable num" data-key="wonMom">Won MOM</th>
               <th class="sortable num" data-key="wonDod">Won DOD</th>
+              <th class="sortable num" data-key="netMomDod">Net MOM/DOD</th>
               <th class="sortable num" data-key="wins">Wins</th>
               <th class="sortable num" data-key="winPct">Win %</th>
-              <th class="sortable num" data-key="dodPct">DOD %</th>
+              <th class="sortable num" data-key="green">Green Cards</th>
+              <th class="sortable num" data-key="yellow">Yellow Cards</th>
+              <th class="sortable num" data-key="red">Red Cards</th>
               <th class="num">Pint Time</th>
             </tr></thead>
             <tbody></tbody>
@@ -779,7 +785,13 @@ function attachSort(tableEl, data, render, initialKey, initialDir){
    ========================================================= */
 function renderSeason(suffix, SQUAD, CARDS, MATCHES, extra){
   extra = extra || {};
-  const STATS = SQUAD.map(statsRow);
+  const STATS = SQUAD.map(statsRow).map(p=>{
+    const cardRow = CARDS.find(c=>c[0]===p.name);
+    p.green  = cardRow ? cardRow[1] : 0;
+    p.yellow = cardRow ? cardRow[2] : 0;
+    p.red    = cardRow ? cardRow[3] : 0;
+    return p;
+  });
   const el = id => document.getElementById(`${id}-${suffix}`);
 
   // scoreboard
@@ -948,8 +960,8 @@ function renderSeason(suffix, SQUAD, CARDS, MATCHES, extra){
       return;
     }
     shell.innerHTML = `<div class="table-shell"><table>
-      <thead><tr><th>Name</th><th class="num">Avg Time</th><th class="num">Pints Logged</th></tr></thead>
-      <tbody>${pints.map(p=>`<tr>${td(`<span class="player">${p.name}</span>`)}${td(formatSecs(p.avg),{cls:'num'})}${td(p.count,{cls:'num'})}</tr>`).join('')}</tbody>
+      <thead><tr><th>Name</th><th class="num">Fastest Time</th><th class="num">Pints Logged</th></tr></thead>
+      <tbody>${pints.map(p=>`<tr>${td(`<span class="player">${p.name}</span>`)}${td(formatSecs(p.best),{cls:'num'})}${td(p.count,{cls:'num'})}</tr>`).join('')}</tbody>
     </table></div>`;
   })();
 
@@ -962,15 +974,16 @@ function renderSeason(suffix, SQUAD, CARDS, MATCHES, extra){
     function render(rows){
       tbody.innerHTML = rows.map(p=>{
         const winDisp = p.winPct!=null ? p.winPct.toFixed(1)+'%' : '—';
-        const dodDisp = p.dodPct!=null ? p.dodPct.toFixed(1)+'%' : '—';
+        const netDisp = p.netMomDod > 0 ? `+${p.netMomDod}` : `${p.netMomDod}`;
         const pintEntry = (extra.pints||[]).find(x=>x.name===p.name);
         return `<tr class="clickable" data-name="${p.name}">
           ${td(`<span class="player">${p.name}</span>`)}
           ${td(p.apps,{cls:'num'})}${td(p.cs,{cls:'num'})}${td(p.goals,{cls:'num'})}${td(p.assists,{cls:'num'})}
           ${td(p.gA,{cls:'num'})}${td(p.goalRatio.toFixed(2),{cls:'num'})}${td(p.assistRatio.toFixed(2),{cls:'num'})}
           ${td(p.momVotes,{cls:'num'})}${td(p.dodVotes,{cls:'num'})}${td(p.wonMom,{cls:'num'})}${td(p.wonDod,{cls:'num'})}
-          ${td(p.wins,{cls:'num'})}${td(winDisp,{cls:'num'})}${td(dodDisp,{cls:'num'})}
-          ${td(pintEntry ? formatSecs(pintEntry.avg) : '—',{cls:'num'})}
+          ${td(netDisp,{cls:'num'})}${td(p.wins,{cls:'num'})}${td(winDisp,{cls:'num'})}
+          ${td(p.green,{cls:'num'})}${td(p.yellow,{cls:'num'})}${td(p.red,{cls:'num'})}
+          ${td(pintEntry ? formatSecs(pintEntry.best) : '—',{cls:'num'})}
         </tr>`;
       }).join('');
       tbody.querySelectorAll('tr[data-name]').forEach(row=>{
@@ -1013,7 +1026,7 @@ function renderSeason(suffix, SQUAD, CARDS, MATCHES, extra){
       const pintEntry = (extra.pints||[]).find(x=>x.name===name);
       const log = getPlayerLog(name);
       const winDisp = p.winPct!=null ? p.winPct.toFixed(1)+'%' : '—';
-      const dodDisp = p.dodPct!=null ? p.dodPct.toFixed(1)+'%' : '—';
+      const netDisp = p.netMomDod > 0 ? `+${p.netMomDod}` : `${p.netMomDod}`;
       dashHost.innerHTML = `
         <div class="player-dash">
           <div class="player-dash-head"><h3>${name}</h3><button class="player-dash-close" id="close-player-dash-${suffix}">Close ✕</button></div>
@@ -1029,9 +1042,9 @@ function renderSeason(suffix, SQUAD, CARDS, MATCHES, extra){
             <div class="player-tile"><div class="v">${p.wonMom}</div><div class="l">MOM Wins</div></div>
             <div class="player-tile"><div class="v">${p.dodVotes}</div><div class="l">DOD Votes</div></div>
             <div class="player-tile"><div class="v">${p.wonDod}</div><div class="l">DOD Wins</div></div>
-            <div class="player-tile"><div class="v">${dodDisp}</div><div class="l">DOD Ratio</div></div>
+            <div class="player-tile"><div class="v">${netDisp}</div><div class="l">Net MOM/DOD</div></div>
             <div class="player-tile"><div class="v">${cardsTxt}</div><div class="l">Cards</div></div>
-            <div class="player-tile"><div class="v">${pintEntry ? formatSecs(pintEntry.avg) : '—'}</div><div class="l">Avg Pint Time</div></div>
+            <div class="player-tile"><div class="v">${pintEntry ? formatSecs(pintEntry.best) : '—'}</div><div class="l">Fastest Pint</div></div>
           </div>
           <div class="player-log-title">Match Log (${log.length} contribution${log.length===1?'':'s'})</div>
           <div class="player-log">
@@ -1122,42 +1135,101 @@ async function loadLiveSeason(){
     const summaryTable = await fetchSheetTable('Season Summary & Cards');
 
     const fixtures = [];
-    const winsMap = {};
     let fastestPint = null;
     const pintTotals = {};
 
-    weekTables.forEach(t=>{
-      const date = getCellFormatted(t,2,2);
-      if(!date) return;
-      const opp = getCell(t,3,2) || '';
-      const gf = Number(getCell(t,5,2))||0;
-      const ga = Number(getCell(t,6,2))||0;
-
-      const teamSheet = [];
-      for(let r=10;r<=25;r++){ const n=getCell(t,r,1); if(n) teamSheet.push(n); }
-
-      const goals=[]; for(let r=29;r<=44;r++){ const n=getCell(t,r,1), v=Number(getCell(t,r,2))||0; if(n && v>0) goals.push([n,v]); }
-      const assists=[]; for(let r=48;r<=63;r++){ const n=getCell(t,r,1), v=Number(getCell(t,r,2))||0; if(n && v>0) assists.push([n,v]); }
-      const mom=[]; let momWinner=null; for(let r=67;r<=82;r++){ const n=getCell(t,r,1), v=Number(getCell(t,r,2))||0, w=getCell(t,r,3); if(n && v>0) mom.push([n,v]); if(w) momWinner=w; }
-      const dod=[]; let dodWinner=null; for(let r=86;r<=101;r++){ const n=getCell(t,r,1), v=Number(getCell(t,r,2))||0, w=getCell(t,r,3); if(n && v>0) dod.push([n,v]); if(w) dodWinner=w; }
-      const cards=[]; for(let r=105;r<=120;r++){ const n=getCell(t,r,1); const g=Number(getCell(t,r,2))||0,y=Number(getCell(t,r,3))||0,rd=Number(getCell(t,r,4))||0; if(n && (g>0||y>0||rd>0)) cards.push([n,g,y,rd]); }
-      for(let r=124;r<=139;r++){
-        const n=getCell(t,r,1), v=Number(getCell(t,r,2))||0;
-        if(n && v>0){
-          if(fastestPint===null || v<fastestPint.seconds) fastestPint = {name:n, seconds:v};
-          if(!pintTotals[n]) pintTotals[n] = {sum:0,count:0};
-          pintTotals[n].sum += v; pintTotals[n].count += 1;
+    // gviz omits fully-blank rows, so absolute row numbers can't be trusted.
+    // Locate each section by its label in column A instead.
+    const SECTION_LABELS = ['TEAM SHEET','GOALS','ASSISTS','MOM VOTES','DOD VOTES','CARDS','PINT TIME'];
+    function indexSections(t){
+      const total = t.rows.length;
+      const found = [];
+      for(let r=1;r<=total;r++){
+        const v = getCell(t,r,1);
+        if(v && SECTION_LABELS.indexOf(String(v).trim().toUpperCase()) !== -1){
+          found.push({label:String(v).trim().toUpperCase(), row:r});
         }
       }
+      const map = {};
+      found.forEach((f,i)=>{
+        // Normally: section title row, then a "Player Name" column-header row, then data.
+        // If that header row is missing, start one row earlier rather than skipping real data.
+        const next = getCell(t, f.row + 1, 1);
+        const hasHeaderRow = next && String(next).trim().toLowerCase() === 'player name';
+        map[f.label] = {
+          start: f.row + (hasHeaderRow ? 2 : 1),
+          end:   (i+1 < found.length) ? found[i+1].row - 1 : total
+        };
+      });
+      return map;
+    }
+    function labelValue(t, label){
+      const total = t.rows.length;
+      for(let r=1;r<=total;r++){
+        const v = getCell(t,r,1);
+        if(v && String(v).trim().toLowerCase() === label.toLowerCase()) return getCell(t,r,2);
+      }
+      return null;
+    }
+    function labelValueFormatted(t, label){
+      const total = t.rows.length;
+      for(let r=1;r<=total;r++){
+        const v = getCell(t,r,1);
+        if(v && String(v).trim().toLowerCase() === label.toLowerCase()) return getCellFormatted(t,r,2);
+      }
+      return null;
+    }
+    function readSection(t, sec, cols){
+      const out = [];
+      if(!sec) return out;
+      for(let r=sec.start; r<=sec.end; r++){
+        const n = getCell(t,r,1);
+        if(!n) continue;
+        out.push([n].concat(cols.map(c=>getCell(t,r,c))));
+      }
+      return out;
+    }
 
-      // Derive the result from the scores (always reliable). If the Result text
-      // field explicitly says Win/Draw/Loss, honour that as an override.
-      const resultText = String(getCell(t,4,2) || '').trim().toLowerCase();
-      let isWin;
-      if(resultText === 'win') isWin = true;
-      else if(resultText === 'draw' || resultText === 'loss') isWin = false;
-      else isWin = gf > ga;
-      if(isWin) teamSheet.forEach(n=> winsMap[n]=(winsMap[n]||0)+1);
+    weekTables.forEach(t=>{
+      const date = labelValueFormatted(t,'Date');
+      if(!date) return;
+      const opp = labelValue(t,'Opponent') || '';
+      const gf = Number(labelValue(t,'Gamblers Score'))||0;
+      const ga = Number(labelValue(t,'Opposition Score'))||0;
+
+      const sec = indexSections(t);
+
+      const teamSheet = readSection(t, sec['TEAM SHEET'], []).map(r=>r[0]);
+
+      const goals = readSection(t, sec['GOALS'], [2])
+        .filter(r=>Number(r[1])>0).map(r=>[r[0], Number(r[1])]);
+      const assists = readSection(t, sec['ASSISTS'], [2])
+        .filter(r=>Number(r[1])>0).map(r=>[r[0], Number(r[1])]);
+
+      const momRows = readSection(t, sec['MOM VOTES'], [2,3]);
+      const mom = momRows.filter(r=>Number(r[1])>0).map(r=>[r[0], Number(r[1])]);
+      let momWinner = null;
+      momRows.forEach(r=>{ if(r[2]) momWinner = r[2]; });
+
+      const dodRows = readSection(t, sec['DOD VOTES'], [2,3]);
+      const dod = dodRows.filter(r=>Number(r[1])>0).map(r=>[r[0], Number(r[1])]);
+      let dodWinner = null;
+      dodRows.forEach(r=>{ if(r[2]) dodWinner = r[2]; });
+
+      const cards = readSection(t, sec['CARDS'], [2,3,4])
+        .map(r=>[r[0], Number(r[1])||0, Number(r[2])||0, Number(r[3])||0])
+        .filter(r=>r[1]>0||r[2]>0||r[3]>0);
+
+      readSection(t, sec['PINT TIME'], [2]).forEach(r=>{
+        const n = r[0], v = Number(r[1])||0;
+        if(n && v>0){
+          if(fastestPint===null || v<fastestPint.seconds) fastestPint = {name:n, seconds:v};
+          if(!pintTotals[n]) pintTotals[n] = {best:v, count:0};
+          if(v < pintTotals[n].best) pintTotals[n].best = v;
+          pintTotals[n].count += 1;
+        }
+      });
+
 
       fixtures.push({date, opp, gf, ga, goals, assists, mom, dod, cards, momWinner, dodWinner});
     });
@@ -1185,7 +1257,7 @@ async function loadLiveSeason(){
       const wonMom = Number(getCell(summaryTable,r,10))||0;
       const dodVotes = Number(getCell(summaryTable,r,11))||0;
       const wonDod = Number(getCell(summaryTable,r,13))||0;
-      const wins = winsMap[name] || 0;
+      const wins = Number(getCell(summaryTable,r,20))||0;
       SQUAD_LIVE.push([name, apps, cs, goals, assists, momVotes, dodVotes, wonMom, wonDod, wins]);
     }
 
@@ -1198,8 +1270,8 @@ async function loadLiveSeason(){
     }
 
     const PINTS_LIVE = Object.entries(pintTotals)
-      .map(([name,d])=>({name, avg: d.sum/d.count, count:d.count}))
-      .sort((a,b)=>a.avg-b.avg);
+      .map(([name,d])=>({name, best: d.best, count:d.count}))
+      .sort((a,b)=>a.best-b.best);
 
     const MATCHES_LIVE = fixtures.map(f=>({date:f.date, opp:f.opp, gf:f.gf, ga:f.ga, goals:f.goals, assists:f.assists, mom:f.mom, dod:f.dod, momWinner:f.momWinner, dodWinner:f.dodWinner}));
 
