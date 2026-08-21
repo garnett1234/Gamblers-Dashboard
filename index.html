@@ -122,6 +122,16 @@
     text-transform:uppercase; color:var(--chalk-dim); padding:12px 14px; background:var(--panel-2);
     border-bottom:1px solid var(--line); white-space:nowrap; user-select:none;
   }
+  /* Keep the player name visible when scrolling wide tables sideways (esp. mobile) */
+  thead th:first-child{
+    position:sticky; left:0; z-index:3; background:var(--panel-2);
+    border-right:1px solid var(--line);
+  }
+  tbody td:first-child{
+    position:sticky; left:0; z-index:2; background:var(--panel);
+    border-right:1px solid var(--line);
+  }
+  tbody tr:hover td:first-child{ background:#17474e; }
   thead th.sortable{cursor:pointer;}
   thead th.sortable:hover{color:var(--chalk);}
   thead th.sort-asc::after{content:" ▲"; color:var(--gold); font-size:9px;}
@@ -156,9 +166,10 @@
   .fixture.open .chev{transform:rotate(180deg);}
   .fixture-detail{
     display:none; padding:4px 16px 16px 16px; border-top:1px solid var(--line-soft);
-    grid-template-columns:repeat(4,1fr); gap:14px;
+    grid-template-columns:repeat(5,1fr); gap:14px;
   }
   .fixture.open .fixture-detail{display:grid;}
+  @media (max-width:1000px){ .fixture-detail{grid-template-columns:repeat(3,1fr);} }
   @media (max-width:760px){ .fixture-detail{grid-template-columns:1fr 1fr;} }
   .fixture-col-title{
     font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase;
@@ -207,6 +218,25 @@
   @media (max-width:520px){ .player-tiles{grid-template-columns:repeat(2,1fr);} }
   .player-tile{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 10px 8px 10px; text-align:center; }
   .player-tile .v{ font-family:'Anton', sans-serif; font-size:20px; color:var(--gold); }
+  /* Grouped tiles: output / votes / team record. Tints stay quiet - the group
+     labels do the work, the colour just reinforces which block you're in. */
+  .tile-group-label{
+    font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.08em;
+    text-transform:uppercase; color:#7f9ba0; margin:14px 0 7px 0;
+  }
+  .tile-group-label:first-of-type{ margin-top:0; }
+  .player-tile.g-output{ background:#17454a; border-color:#3f6b57; }
+  .player-tile.g-output .v{ color:#8fd0a6; }
+  .player-tile.g-output .l{ color:#9fb8ad; }
+  .player-tile.g-votes{ background:#1a3f52; border-color:#4a5f86; }
+  .player-tile.g-votes .v{ color:#9aa8e0; }
+  .player-tile.g-votes .l{ color:#a8b0c8; }
+  .player-tile.g-record{ background:#1f4148; border-color:#7a6740; }
+  .player-tile.g-record .v{ color:#e0bd72; }
+  .player-tile.g-record .l{ color:#c2b492; }
+  .tiles-5{ display:grid; grid-template-columns:repeat(5,1fr); gap:9px; }
+  .tiles-4{ display:grid; grid-template-columns:repeat(4,1fr); gap:9px; }
+  @media (max-width:760px){ .tiles-5, .tiles-4{ grid-template-columns:repeat(2,1fr); } }
   .player-tile .l{ font-family:'IBM Plex Mono', monospace; font-size:9px; letter-spacing:0.06em; text-transform:uppercase; color:var(--chalk-dim); margin-top:4px; }
   .player-log-title{ margin-top:20px; font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--chalk-dim); }
   .player-log{ margin-top:10px; display:flex; flex-direction:column; gap:6px; max-height:260px; overflow:auto; }
@@ -269,7 +299,14 @@
         <div class="section-head"><div class="section-title">Headline <em>Stats</em></div></div>
         <div class="headline-grid" id="headline-last"></div>
       </div>
-
+      <div class="section">
+        <div class="section-head"><div class="section-title">Goals</div></div>
+        <div class="stat-card"><div class="stat-card-title">Top Scorers</div><div class="stat-list" id="list-goals-last"></div></div>
+      </div>
+      <div class="section">
+        <div class="section-head"><div class="section-title">Assists</div></div>
+        <div class="stat-card"><div class="stat-card-title">Most Assists</div><div class="stat-list" id="list-assists-last"></div></div>
+      </div>
       <div class="section">
         <div class="section-head"><div class="section-title">MOM <em>/</em> DOD</div></div>
         <div class="card-grid cols-2">
@@ -295,22 +332,6 @@
           </div>
         </div>
       </div>
-
-      <div class="section">
-        <div class="section-head"><div class="section-title">Goals</div></div>
-        <div class="stat-card"><div class="stat-card-title">Top Scorers</div><div class="stat-list" id="list-goals-last"></div></div>
-      </div>
-
-      <div class="section">
-        <div class="section-head"><div class="section-title">Assists</div></div>
-        <div class="stat-card"><div class="stat-card-title">Most Assists</div><div class="stat-list" id="list-assists-last"></div></div>
-      </div>
-
-      <div class="section">
-        <div class="section-head"><div class="section-title">Clean Sheets</div></div>
-        <div class="stat-card"><div class="chip-row" id="list-cleansheets-last"></div></div>
-      </div>
-
       <div class="section">
         <div class="section-head">
           <div class="section-title">Appearances <em>&amp;</em> Ratios</div>
@@ -321,6 +342,8 @@
             <thead><tr>
               <th class="sortable" data-key="name">Name</th>
               <th class="sortable num" data-key="apps">Appearances</th>
+              <th class="sortable num" data-key="goalRatio">Goal Ratio</th>
+              <th class="sortable num" data-key="assistRatio">Assist Ratio</th>
               <th class="sortable num" data-key="winPct">Win Ratio</th>
               <th class="sortable num" data-key="netMomDod">Net MOM/DOD</th>
             </tr></thead>
@@ -328,7 +351,6 @@
           </table>
         </div>
       </div>
-
       <div class="section">
         <div class="section-head">
           <div class="section-title">Cards</div>
@@ -336,7 +358,10 @@
         </div>
         <div class="cards-grid" id="cards-grid-last"></div>
       </div>
-
+      <div class="section">
+        <div class="section-head"><div class="section-title">Clean Sheets</div></div>
+        <div class="stat-card"><div class="chip-row" id="list-cleansheets-last"></div></div>
+      </div>
       <div class="section">
         <div class="section-head">
           <div class="section-title">All <em>Fixtures</em></div>
@@ -418,7 +443,14 @@
           <div class="section-head"><div class="section-title">Headline <em>Stats</em><span class="live-badge"><span class="dot"></span>Live</span></div></div>
           <div class="headline-grid" id="headline-this"></div>
         </div>
-
+        <div class="section">
+          <div class="section-head"><div class="section-title">Goals</div></div>
+          <div class="stat-card"><div class="stat-card-title">Top Scorers</div><div class="stat-list" id="list-goals-this"></div></div>
+        </div>
+        <div class="section">
+          <div class="section-head"><div class="section-title">Assists</div></div>
+          <div class="stat-card"><div class="stat-card-title">Most Assists</div><div class="stat-list" id="list-assists-this"></div></div>
+        </div>
         <div class="section">
           <div class="section-head"><div class="section-title">MOM <em>/</em> DOD</div></div>
           <div class="card-grid cols-2">
@@ -444,22 +476,6 @@
             </div>
           </div>
         </div>
-
-        <div class="section">
-          <div class="section-head"><div class="section-title">Goals</div></div>
-          <div class="stat-card"><div class="stat-card-title">Top Scorers</div><div class="stat-list" id="list-goals-this"></div></div>
-        </div>
-
-        <div class="section">
-          <div class="section-head"><div class="section-title">Assists</div></div>
-          <div class="stat-card"><div class="stat-card-title">Most Assists</div><div class="stat-list" id="list-assists-this"></div></div>
-        </div>
-
-        <div class="section">
-          <div class="section-head"><div class="section-title">Clean Sheets</div></div>
-          <div class="stat-card"><div class="chip-row" id="list-cleansheets-this"></div></div>
-        </div>
-
         <div class="section">
           <div class="section-head">
             <div class="section-title">Appearances <em>&amp;</em> Ratios</div>
@@ -470,6 +486,8 @@
               <thead><tr>
                 <th class="sortable" data-key="name">Name</th>
                 <th class="sortable num" data-key="apps">Appearances</th>
+                <th class="sortable num" data-key="goalRatio">Goal Ratio</th>
+                <th class="sortable num" data-key="assistRatio">Assist Ratio</th>
                 <th class="sortable num" data-key="winPct">Win Ratio</th>
                 <th class="sortable num" data-key="netMomDod">Net MOM/DOD</th>
               </tr></thead>
@@ -477,7 +495,6 @@
             </table>
           </div>
         </div>
-
         <div class="section">
           <div class="section-head">
             <div class="section-title">Cards</div>
@@ -485,7 +502,10 @@
           </div>
           <div class="cards-grid" id="cards-grid-this"></div>
         </div>
-
+        <div class="section">
+          <div class="section-head"><div class="section-title">Clean Sheets</div></div>
+          <div class="stat-card"><div class="chip-row" id="list-cleansheets-this"></div></div>
+        </div>
         <div class="section">
           <div class="section-head">
             <div class="section-title">All <em>Fixtures</em></div>
@@ -493,9 +513,6 @@
           </div>
           <div id="fixtures-list-this"></div>
         </div>
-
-        <div id="data-issues-this" class="section hide"></div>
-
         <div class="section">
           <div class="section-head">
             <div class="section-title">Pints <em>Leaderboard</em></div>
@@ -902,7 +919,7 @@ function renderSeason(suffix, SQUAD, CARDS, MATCHES, extra){
         const netDisp = p.netMomDod > 0 ? `+${p.netMomDod}` : `${p.netMomDod}`;
         const bgWin = p.winPct!=null ? scale3(p.winPct, mmWin.min, mmWin.max, '#c9432e','#dba52e','#2f8f4e', false) : null;
         const bgNet = scale3(p.netMomDod, mmNet.min, mmNet.max, '#c9432e','#dba52e','#2f8f4e', false);
-        return `<tr>${td(`<span class="player">${p.name}</span>`)}${td(p.apps,{cls:'num'})}${td(winDisp,{bg:bgWin,cls:'num'})}${td(netDisp,{bg:bgNet,cls:'num'})}</tr>`;
+        return `<tr>${td(`<span class="player">${p.name}</span>`)}${td(p.apps,{cls:'num'})}${td(p.goalRatio.toFixed(2),{cls:'num'})}${td(p.assistRatio.toFixed(2),{cls:'num'})}${td(winDisp,{bg:bgWin,cls:'num'})}${td(netDisp,{bg:bgNet,cls:'num'})}</tr>`;
       }).join('');
     }
     attachSort(tableEl, STATS, render, 'apps', -1);
@@ -939,6 +956,17 @@ function renderSeason(suffix, SQUAD, CARDS, MATCHES, extra){
           return `<div class="fixture-entry${isWinner?' winner':''}"><span>${isWinner?'★ ':''}${n}</span><span class="v">${v}</span></div>`;
         }).join('');
       }
+      // Pints sort the other way (quickest first) and show a formatted time,
+      // with the fastest of the match highlighted the same way MOM/DOD winners are.
+      function pintGroup(arr, empty){
+        if(!arr || !arr.length) return `<div class="fixture-empty">${empty}</div>`;
+        const sorted = [...arr].sort((a,b)=>a[1]-b[1]);
+        const quickest = sorted[0][0];
+        return sorted.map(([n,v])=>{
+          const isTop = n===quickest;
+          return `<div class="fixture-entry${isTop?' winner':''}"><span>${isTop?'★ ':''}${n}</span><span class="v">${formatSecs(v)}</span></div>`;
+        }).join('');
+      }
       return `
         <div class="fixture ${cls}" data-idx="${idx}">
           <div class="fixture-head">
@@ -950,6 +978,7 @@ function renderSeason(suffix, SQUAD, CARDS, MATCHES, extra){
             <div><div class="fixture-col-title">Assists</div>${group(m.assists,'No assists')}</div>
             <div><div class="fixture-col-title">MOM Votes</div>${group(m.mom,'Not recorded',m.momWinner,true)}</div>
             <div><div class="fixture-col-title">DOD Votes</div>${group(m.dod,'Not recorded',m.dodWinner,true)}</div>
+            <div><div class="fixture-col-title">Pint Times</div>${pintGroup(m.pints,'None recorded')}</div>
           </div>
         </div>`;
     }).join('');
@@ -1028,6 +1057,12 @@ function renderSeason(suffix, SQUAD, CARDS, MATCHES, extra){
           if(c[3]>0) bits.push(`${c[3]} red`);
           if(bits.length) parts.push(bits.join(', '));
         }
+        const pt = (m.pints||[]).find(x=>x[0]===name);
+        if(pt){
+          const quickest = [...(m.pints||[])].sort((a,b)=>a[1]-b[1])[0];
+          const wasQuickest = quickest && quickest[0] === name;
+          parts.push(`${formatSecs(pt[1])} pint${wasQuickest?' — FASTEST':''}`);
+        }
         // Show every match the player appeared in, even with nothing else to report.
         const played = m.teamSheet ? m.teamSheet.indexOf(name) !== -1 : false;
         if(parts.length || played){
@@ -1050,22 +1085,32 @@ function renderSeason(suffix, SQUAD, CARDS, MATCHES, extra){
       dashHost.innerHTML = `
         <div class="player-dash">
           <div class="player-dash-head"><h3>${name}</h3><button class="player-dash-close" id="close-player-dash-${suffix}">Close ✕</button></div>
-          <div class="player-tiles">
-            <div class="player-tile"><div class="v">${p.apps}</div><div class="l">Apps</div></div>
-            <div class="player-tile"><div class="v">${p.goals}</div><div class="l">Goals</div></div>
-            <div class="player-tile"><div class="v">${p.assists}</div><div class="l">Assists</div></div>
-            <div class="player-tile"><div class="v">${p.gA}</div><div class="l">G+A</div></div>
-            <div class="player-tile"><div class="v">${p.cs}</div><div class="l">Clean Sheets</div></div>
-            <div class="player-tile"><div class="v">${p.wins}</div><div class="l">Wins</div></div>
-            <div class="player-tile"><div class="v">${winDisp}</div><div class="l">Win Ratio</div></div>
-            <div class="player-tile"><div class="v">${p.momVotes}</div><div class="l">MOM Votes</div></div>
-            <div class="player-tile"><div class="v">${p.wonMom}</div><div class="l">MOM Wins</div></div>
-            <div class="player-tile"><div class="v">${p.dodVotes}</div><div class="l">DOD Votes</div></div>
-            <div class="player-tile"><div class="v">${p.wonDod}</div><div class="l">DOD Wins</div></div>
-            <div class="player-tile"><div class="v">${netDisp}</div><div class="l">Net MOM/DOD</div></div>
-            <div class="player-tile"><div class="v">${cardsTxt}</div><div class="l">Cards</div></div>
-            <div class="player-tile"><div class="v">${pintEntry ? formatSecs(pintEntry.best) : '—'}</div><div class="l">Fastest Pint</div></div>
+          <div class="tile-group-label">Output</div>
+          <div class="tiles-5">
+            <div class="player-tile g-output"><div class="v">${p.apps}</div><div class="l">Apps</div></div>
+            <div class="player-tile g-output"><div class="v">${p.goals}</div><div class="l">Goals</div></div>
+            <div class="player-tile g-output"><div class="v">${p.assists}</div><div class="l">Assists</div></div>
+            <div class="player-tile g-output"><div class="v">${p.gA}</div><div class="l">G+A</div></div>
+            <div class="player-tile g-output"><div class="v">${pintEntry ? formatSecs(pintEntry.best) : '—'}</div><div class="l">Fastest Pint</div></div>
           </div>
+
+          <div class="tile-group-label">Votes</div>
+          <div class="tiles-5">
+            <div class="player-tile g-votes"><div class="v">${p.momVotes}</div><div class="l">MOM Votes</div></div>
+            <div class="player-tile g-votes"><div class="v">${p.wonMom}</div><div class="l">MOM Wins</div></div>
+            <div class="player-tile g-votes"><div class="v">${p.dodVotes}</div><div class="l">DOD Votes</div></div>
+            <div class="player-tile g-votes"><div class="v">${p.wonDod}</div><div class="l">DOD Wins</div></div>
+            <div class="player-tile g-votes"><div class="v">${netDisp}</div><div class="l">Net MOM/DOD</div></div>
+          </div>
+
+          <div class="tile-group-label">Team record</div>
+          <div class="tiles-4">
+            <div class="player-tile g-record"><div class="v">${p.wins}</div><div class="l">Wins</div></div>
+            <div class="player-tile g-record"><div class="v">${winDisp}</div><div class="l">Win Ratio</div></div>
+            <div class="player-tile g-record"><div class="v">${p.cs}</div><div class="l">Clean Sheets</div></div>
+            <div class="player-tile g-record"><div class="v">${cardsTxt}</div><div class="l">Cards</div></div>
+          </div>
+
           <div class="player-log-title">Match Log (${log.length} match${log.length===1?'':'es'})</div>
           <div class="player-log">
             ${log.length ? log.map(l=>`<div class="player-log-row"><span class="opp">v ${l.opp} <span style="color:var(--chalk-dim); font-weight:400;">(${l.date})</span></span><span class="contrib">${l.text}</span></div>`).join('') : '<div class="fixture-empty">No matches recorded this season.</div>'}
@@ -1287,9 +1332,11 @@ async function loadLiveSeason(){
         .map(r=>[r[0], Number(r[1])||0, Number(r[2])||0, Number(r[3])||0])
         .filter(r=>r[1]>0||r[2]>0||r[3]>0);
 
+      const pints = [];
       readSection(t, sec['PINT TIME'], [2]).forEach(r=>{
         const n = r[0], v = Number(r[1])||0;
         if(n && v>0){
+          pints.push([n, v]);
           if(fastestPint===null || v<fastestPint.seconds) fastestPint = {name:n, seconds:v};
           if(!pintTotals[n]) pintTotals[n] = {best:v, count:0};
           if(v < pintTotals[n].best) pintTotals[n].best = v;
@@ -1322,7 +1369,7 @@ async function loadLiveSeason(){
       }
 
 
-      fixtures.push({date, opp, gf, ga, goals, assists, mom, dod, cards, momWinner, dodWinner, teamSheet});
+      fixtures.push({date, opp, gf, ga, goals, assists, mom, dod, cards, momWinner, dodWinner, teamSheet, pints});
     });
 
     fixtures.sort((a,b)=>parseDMY(a.date)-parseDMY(b.date));
@@ -1364,7 +1411,7 @@ async function loadLiveSeason(){
       .map(([name,d])=>({name, best: d.best, count:d.count}))
       .sort((a,b)=>a.best-b.best);
 
-    const MATCHES_LIVE = fixtures.map(f=>({date:f.date, opp:f.opp, gf:f.gf, ga:f.ga, goals:f.goals, assists:f.assists, mom:f.mom, dod:f.dod, momWinner:f.momWinner, dodWinner:f.dodWinner, cards:f.cards, teamSheet:f.teamSheet}));
+    const MATCHES_LIVE = fixtures.map(f=>({date:f.date, opp:f.opp, gf:f.gf, ga:f.ga, goals:f.goals, assists:f.assists, mom:f.mom, dod:f.dod, momWinner:f.momWinner, dodWinner:f.dodWinner, cards:f.cards, teamSheet:f.teamSheet, pints:f.pints}));
 
     emptyState.classList.add('hide');
     loadError.classList.add('hide');
